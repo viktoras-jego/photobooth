@@ -5,6 +5,6 @@
   "payment": {
     "currency": "EUR",
     "minorUnit": 2,
-    "value": 600
+    "value": 500
   }
 }
