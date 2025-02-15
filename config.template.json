@@ -1,0 +1,10 @@
+{
+  "merchantCode": "",
+  "readerID": "",
+  "bearerToken": "",
+  "payment": {
+    "currency": "EUR",
+    "minorUnit": 2,
+    "value": 600
+  }
+}
