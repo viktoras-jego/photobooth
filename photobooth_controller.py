@@ -10,6 +10,7 @@ from led_manager import LEDManager
 from payment_service import PaymentService
 from sound_service import SoundService
 from photo_service import PhotoService
+from printer_service import PrinterService
 from config_loader import load_config
 
 # Clear handlers
@@ -54,6 +55,7 @@ class PhotoboothController:
         self.led_manager = LEDManager()
         self.sound_service = SoundService()
         self.photo_service = PhotoService(photos_dir=self.config.get('photos_dir', 'photos'), max_photos=4)
+        self.printer_service = PrinterService()
         self.button_manager = ButtonManager(
             button1_callback=self._on_button1_pressed,
             button2_callback=self._on_button2_pressed
@@ -177,6 +179,10 @@ class PhotoboothController:
                 collage_path = self.photo_service.create_final_photo()
                 if collage_path:
                     logger.info(f"Final collage created at: {collage_path}")
+                    if self.printer_service.print_collage(collage_path):
+                        logger.info("Collage sent to printer successfully")
+                    else:
+                        logger.error("Failed to print collage")
                 else:
                     logger.error("Failed to create final collage")
                 threading.Timer(10.0, self.reset_to_idle).start()
@@ -207,6 +213,7 @@ class PhotoboothController:
                 time.sleep(0.1)
         except KeyboardInterrupt:
             logger.info("Shutting down photobooth controller...")
+            self.printer_service.stop_watching()
             self.led_manager.stop_pulsing_button1()
             self.led_manager.stop_pulsing_button2()
             self.led_manager.set_button1_color(0, 0, 0)

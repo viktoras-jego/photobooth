@@ -3,7 +3,7 @@ import os
 import time
 import logging
 import signal
-from PIL import Image
+from PIL import Image, ImageOps, ImageDraw
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -64,27 +64,110 @@ class PhotoService:
             logger.exception(f"Error while killing gphoto2 processes: {e}")
             return False
 
-    def create_final_photo(self, quality=85, optimize=True):
+    def create_final_photo(self, quality=100, optimize=False):
+        """
+        Creates a 1200x1800 collage with adjustable line and border widths.
+
+        Parameters:
+            quality (int): JPEG quality (1-100). Default is 100.
+            optimize (bool): Whether to optimize the image, effectively reducing file size. Default is False.
+
+        Returns:
+            str: Path to the saved collage image, or None if an error occurs.
+        """
         try:
             logger.info("Creating final photo collage...")
-            photo_files = sorted([os.path.join(self.photos_dir, f) for f in os.listdir(self.photos_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
-            if len(photo_files) != 4:
+
+            # Gather Photo Files
+            photo_files = sorted([
+                os.path.join(self.photos_dir, f)
+                for f in os.listdir(self.photos_dir)
+                if f.lower().endswith(('.jpg', '.jpeg', '.png'))
+            ])
+
+            expected_photos = 4
+            if len(photo_files) != expected_photos:
                 logger.error(f"Expected 4 photos, but found {len(photo_files)}")
                 return None
+
+            # Open Images
             images = [Image.open(photo) for photo in photo_files]
-            max_width, max_height = max(img.width for img in images), max(img.height for img in images)
-            padding = 140
-            collage = Image.new('RGB', ((max_width * 2) + (padding * 3), (max_height * 4) + (padding * 5)), (255, 255, 255))
-            for row, img in enumerate(images):
-                x_pos, y_pos = padding, padding + (row * (max_height + padding))
-                collage.paste(img, (x_pos, y_pos))
-                collage.paste(img, (x_pos + max_width + padding, y_pos))
+
+            # Define Collage Parameters with offsets
+            collage_width = 1200
+            collage_height = 1800
+            horizontal_offset = 4  # Example offset, can be negative
+            vertical_offset = 8    # Example offset, can be negative
+
+            # Adjustable border and line widths
+            base_border_width = 8
+            border_width_left = max(0, base_border_width + horizontal_offset)
+            border_width_right = max(0, base_border_width - horizontal_offset)
+            border_width_top = max(0, base_border_width - vertical_offset)
+            border_width_bottom = max(0, base_border_width + vertical_offset) - 8
+            middle_line_thickness = 6
+            row_line_thickness = 2
+
+            image_width = (collage_width - middle_line_thickness - border_width_left - border_width_right) // 2
+            image_height = (collage_height - row_line_thickness * 3 - border_width_top - border_width_bottom) // 4
+            border_color = (255, 255, 255)
+
+            # Create Collage Canvas
+            collage = Image.new('RGB', (collage_width, collage_height), border_color)
+
+            # Arrange Photos
+            for i in range(4):
+                for j in range(2):
+                    img = images[i]
+
+                    # Resize maintaining height and center crop width
+                    img_aspect_ratio = img.width / img.height
+                    new_height = image_height
+                    new_width = int(new_height * img_aspect_ratio)
+
+                    img_resized = img.resize((new_width, new_height), Image.LANCZOS)
+
+                    left = (new_width - image_width) // 2
+                    img_cropped = img_resized.crop((left, 0, left + image_width, new_height))
+
+                    # Calculate position to center the image
+                    x = j * image_width + j * middle_line_thickness + border_width_left
+                    y = i * (image_height + row_line_thickness) + border_width_top
+
+                    # Paste image on collage
+                    collage.paste(img_cropped, (x, y))
+
+            # Draw lines for separation
+            draw = ImageDraw.Draw(collage)
+
+            # Vertical middle line
+            if middle_line_thickness > 0:
+                center_x = (border_width_left + image_width + middle_line_thickness // 2)
+                draw.line([(center_x, border_width_top), (center_x, collage_height - border_width_bottom)], fill=border_color, width=middle_line_thickness)
+
+            # Horizontal row lines
+            if row_line_thickness > 0:
+                for i in range(1, 4):
+                    y = i * (image_height + row_line_thickness) + border_width_top - row_line_thickness // 2
+                    draw.line([(border_width_left, y), (collage_width - border_width_right, y)], fill=border_color, width=row_line_thickness)
+
+            # Draw borders around the collage
+            draw.rectangle([(border_width_left, border_width_top),
+                            (collage_width - border_width_right, collage_height - border_width_bottom)],
+                           outline=border_color, width=1)
+
+            # Save the Collage
             collage_path = os.path.join(self.photos_dir, "final_collage.jpg")
             collage.save(collage_path, quality=quality, optimize=optimize)
-            logger.info(f"Collage created and compressed successfully at {collage_path}")
+
+            # Log Information
+            collage_size_mb = os.path.getsize(collage_path) / (1024 * 1024)
+            logger.info(f"Collage created and saved at {collage_path}")
             logger.info(f"Compression settings: quality={quality}, optimize={optimize}")
-            logger.info(f"Collage file size: {os.path.getsize(collage_path) / (1024 * 1024):.2f} MB")
+            logger.info(f"Collage file size: {collage_size_mb:.2f} MB")
+
             return collage_path
+
         except Exception as e:
             logger.exception(f"Error creating final photo collage: {e}")
             return None
