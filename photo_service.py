@@ -5,8 +5,8 @@ import logging
 import signal
 from PIL import Image, ImageOps, ImageDraw
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('PhotoService')
+logger.setLevel(logging.INFO)
 
 class PhotoService:
     def __init__(self, photos_dir='photos', max_photos=4):
@@ -17,15 +17,11 @@ class PhotoService:
 
     def take_photo(self):
         try:
-            self.kill_gphoto2_process()
-            time.sleep(0.5)
-            logger.info("Taking photo...")
             subprocess.run([
                 'gphoto2', '--capture-image-and-download',
                 '--filename', os.path.join(self.photos_dir, f"photo_{self.current_photo_count + 1:04d}.jpg")
             ], check=True)
             self.current_photo_count += 1
-            logger.info(f"Photo {self.current_photo_count} taken and downloaded.")
             return self.get_latest_photo_path()
         except subprocess.CalledProcessError as e:
             logger.error(f"Error taking photo: {e}")
@@ -44,11 +40,9 @@ class PhotoService:
 
     def reset_photo_count(self):
         self.current_photo_count = 0
-        logger.info("Photo count reset to zero.")
 
     def kill_gphoto2_process(self):
         try:
-            logger.info("Checking for existing gphoto2 processes...")
             p = subprocess.Popen(['ps', '-A'], stdout=subprocess.PIPE)
             out, _ = p.communicate()
             processes_killed = False
@@ -58,7 +52,6 @@ class PhotoService:
                     os.kill(pid, signal.SIGKILL)
                     logger.info(f"Killed gphoto2 process with PID: {pid}")
                     processes_killed = True
-            logger.info("Successfully killed interfering gphoto2 processes" if processes_killed else "No interfering gphoto2 processes found")
             return processes_killed
         except Exception as e:
             logger.exception(f"Error while killing gphoto2 processes: {e}")
@@ -103,7 +96,7 @@ class PhotoService:
             base_border_width = 8
             border_width_left = max(0, base_border_width + horizontal_offset)
             border_width_right = max(0, base_border_width - horizontal_offset)
-            border_width_top = max(0, base_border_width - vertical_offset)
+            border_width_top = max(0, base_border_width - vertical_offset) - 1
             border_width_bottom = max(0, base_border_width + vertical_offset) - 8
             middle_line_thickness = 6
             row_line_thickness = 2
@@ -162,9 +155,6 @@ class PhotoService:
 
             # Log Information
             collage_size_mb = os.path.getsize(collage_path) / (1024 * 1024)
-            logger.info(f"Collage created and saved at {collage_path}")
-            logger.info(f"Compression settings: quality={quality}, optimize={optimize}")
-            logger.info(f"Collage file size: {collage_size_mb:.2f} MB")
 
             return collage_path
 

@@ -8,9 +8,8 @@ import time
 from gpiozero import PWMLED
 import logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('LEDManager')
+logger.setLevel(logging.INFO)
 
 class LEDManager:
     def __init__(self):
@@ -71,23 +70,17 @@ class LEDManager:
         self.blue_led2.value = blue
         logger.debug(f"Button 2 set to color: R={self.red_led2.value}, G={self.green_led2.value}, B={self.blue_led2.value}")
 
-    def flash_button_red(self, button_number, times):
-        if button_number == 1:
-            set_color = self.set_button1_color
-        elif button_number == 2:
-            set_color = self.set_button2_color
-        else:
-            logger.error(f"Invalid button number: {button_number}. Must be 1 or 2.")
-            return
-
+    def flash_button_red(self, times):
         for _ in range(times):
-            # Red on
-            set_color(1, 0, 0)
+            # Red on for both buttons
+            self.set_button1_color(1, 0, 0)
+            self.set_button2_color(1, 0, 0)
             time.sleep(0.2)
-            # Off
-            set_color(0, 0, 0)
+            # Off for both buttons
+            self.set_button1_color(0, 0, 0)
+            self.set_button2_color(0, 0, 0)
             time.sleep(0.2)
-        logger.debug(f"Button {button_number} flashed red {times} times.")
+        logger.debug(f"Both buttons flashed red {times} times.")
 
     def start_pulsing_button1(self):
         """Start pulsing LEDs for Button 1 only."""
@@ -95,7 +88,6 @@ class LEDManager:
             self.pulsing_active_button1 = True
             self.pulse_thread_button1 = threading.Thread(target=self._pulse_loop, args=(1,), daemon=True)
             self.pulse_thread_button1.start()
-            logger.info("Started pulsing Button 1.")
 
     def start_pulsing_button2(self):
         """Start pulsing LEDs for Button 2 only."""
@@ -103,7 +95,6 @@ class LEDManager:
             self.pulsing_active_button2 = True
             self.pulse_thread_button2 = threading.Thread(target=self._pulse_loop, args=(2,), daemon=True)
             self.pulse_thread_button2.start()
-            logger.info("Started pulsing Button 2.")
 
     def stop_pulsing_button1(self):
         """Stop pulsing LEDs for Button 1."""
@@ -112,7 +103,6 @@ class LEDManager:
             if self.pulse_thread_button1:
                 self.pulse_thread_button1.join(1.0)  # Wait up to 1 second for the thread to finish
             self.set_button1_color(0, 0, 0)  # Turn off Button 1 LEDs
-            logger.info("Stopped pulsing Button 1 and turned off LEDs.")
 
     def stop_pulsing_button2(self):
         """Stop pulsing LEDs for Button 2."""
@@ -121,7 +111,6 @@ class LEDManager:
             if self.pulse_thread_button2:
                 self.pulse_thread_button2.join(1.0)  # Wait up to 1 second for the thread to finish
             self.set_button2_color(0, 0, 0)  # Turn off Button 2 LEDs
-            logger.info("Stopped pulsing Button 2 and turned off LEDs.")
 
     def _determine_sleep_time(self, brightness):
         """

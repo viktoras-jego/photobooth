@@ -4,7 +4,8 @@ import logging
 import signal
 import sys
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('SoundService')
+logger.setLevel(logging.INFO)
 
 class SoundService:
     def __init__(self, volume=1):
@@ -18,14 +19,12 @@ class SoundService:
             script_dir = os.path.dirname(os.path.abspath(__file__))
             self.audio_file = os.path.join(script_dir, 'timer_audio.wav')
             pygame.mixer.music.load(self.audio_file)
-            logger.info(f"Sound service initialized with volume {volume}")
         except Exception as e:
             logger.error(f"Failed to initialize sound service: {e}")
 
     def play_timer_audio(self):
         try:
             pygame.mixer.music.play()
-            logger.info("Playing timer audio")
         except Exception as e:
             logger.error(f"Failed to play timer audio: {e}")
 
