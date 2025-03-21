@@ -82,6 +82,18 @@ class LEDManager:
             time.sleep(0.2)
         logger.debug(f"Both buttons flashed red {times} times.")
 
+    def flash_button_green(self, times):
+        for _ in range(times):
+            # Red on for both buttons
+            self.set_button1_color(0, 1, 0)
+            self.set_button2_color(0, 1, 0)
+            time.sleep(0.4)
+            # Off for both buttons
+            self.set_button1_color(0, 0, 0)
+            self.set_button2_color(0, 0, 0)
+            time.sleep(0.4)
+        logger.debug(f"Both buttons flashed green {times} times.")
+
     def start_pulsing_button1(self):
         """Start pulsing LEDs for Button 1 only."""
         if not self.pulsing_active_button1:
