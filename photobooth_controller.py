@@ -80,6 +80,7 @@ class PhotoboothController:
 
     def _on_button1_pressed(self):
         if self.state == State.IDLE:
+            #self.printer_service.print_collage('/home/viktoras/photobooth/photos/final_collage.jpg')
             self.initiate_payment()
             #self.led_manager.stop_pulsing_button1()
             #self.payment_successful()
