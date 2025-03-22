@@ -130,7 +130,7 @@ class PhotoboothController:
             ).inc()
 
         self.state = State.PAYMENT_SUCCESS
-        logger.info("Payment successful!")
+        logger.info(f"Payment log: Transaction {self.current_transaction_id} - Payment successful, but not printed yet")
         self.led_manager.set_button1_color(0, 1, 0)
         self.state = State.PHOTO_PULSING
         self.led_manager.set_pulse_color_button2(red=0.1, green=1.0, blue=1)
@@ -186,7 +186,7 @@ class PhotoboothController:
                                 transaction_id=self.current_transaction_id,
                                 state='print_successful'
                             ).inc()
-                        logger.info("Collage sent to printer successfully")
+                        logger.info(f"Payment log: Transaction {self.current_transaction_id} - Print also successful")
                         self.state = State.PHOTO_PRINTED
                         self.led_manager.flash_button_green(5)
                         self.reset_to_idle()
