@@ -49,10 +49,25 @@ class PaymentService:
         response = requests.get(url, headers=headers, params=params, timeout=10)
         if response.status_code == 200:
             data = response.json()
+            # Process single transaction response
             if 'status' in data and data.get('client_transaction_id') == client_transaction_id:
-                return data['status']
+                return {
+                    'status': data['status'],
+                    'transaction_code': data.get('transaction_code')
+                }
+            # Process list of transactions
             elif 'items' in data and len(data['items']) > 0:
-                return data['items'][0]['status']
+                # Find the transaction with matching client_transaction_id
+                for transaction in data['items']:
+                    if transaction.get('client_transaction_id') == client_transaction_id:
+                        return {
+                            'status': transaction['status'],
+                            'transaction_code': transaction.get('transaction_code')
+                        }
+                # If no matching transaction found after iterating
+                error_msg = f"No matching transaction found with client_transaction_id: {client_transaction_id} in items list"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
             else:
                 error_msg = f"No transaction found with client_transaction_id: {client_transaction_id}"
                 logger.error(error_msg)
@@ -71,13 +86,14 @@ class PaymentService:
         while attempts < max_attempts:
             attempts += 1
             try:
-                status = self.get_transaction_status(client_transaction_id)
+                result = self.get_transaction_status(client_transaction_id)
+                status = result['status']
                 if status in ["SUCCESSFUL", "FAILED"]:
                     logger.info(f"Final transaction status: {status}")
-                    return status
+                    return result
                 time.sleep(interval_ms / 1000)
             except Exception as e:
                 logger.error(f"Error polling status (attempt {attempts}): {str(e)}")
                 time.sleep(interval_ms / 1000)
         logger.error("Transaction polling reached maximum attempts")
-        return "FAILED"
+        return {'status': 'FAILED', 'transaction_code': None}

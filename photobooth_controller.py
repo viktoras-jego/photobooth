@@ -4,7 +4,8 @@ import os
 import signal
 from enum import Enum
 import logging
-from prometheus_client import start_http_server, Counter, Gauge, Histogram
+from prometheus_client import start_http_server, Counter, Gauge, Histogram, write_to_textfile, REGISTRY
+from prometheus_client.multiprocess import MultiProcessCollector
 import json
 import sys
 
@@ -28,7 +29,6 @@ logging.basicConfig(
 )
 
 # Define Prometheus metrics
-ERRORS_TOTAL = Counter('errors_total', 'Total number of errors by type', ['type'])
 TRANSACTION_STATE = Counter('transaction_state_total', 'Transaction states with IDs', ['transaction_id', 'state'])
 
 class State(Enum):
@@ -60,7 +60,16 @@ class PhotoboothController:
         self.payment_service = PaymentService(self.config)
         self.state = State.IDLE
         self.current_transaction_id = None
+        self.transaction_code = None
         self.photo_lock = threading.Lock()
+
+        # Track the last state change time
+        self.last_state_change = time.time()
+        # Inactivity timeout in seconds (5 minutes)
+        self.inactivity_timeout = 300
+        # Start the inactivity watchdog thread
+        self.watchdog_thread = threading.Thread(target=self._inactivity_watchdog, daemon=True)
+        self.watchdog_thread.start()
 
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         signal.signal(signal.SIGINT, self._handle_shutdown)
@@ -78,9 +87,26 @@ class PhotoboothController:
         except Exception as e:
             logger.error(f"Error cleaning up photos directory: {e}")
 
+    def _update_state(self, new_state):
+        if self.state != new_state:
+            self.state = new_state
+            self.last_state_change = time.time()
+
+    def _inactivity_watchdog(self):
+        while True:
+            try:
+                if self.state != State.IDLE:
+                    current_time = time.time()
+                    if current_time - self.last_state_change > self.inactivity_timeout:
+                        logger.error(f"Photobooth inactive for {self.inactivity_timeout} seconds. Last state {self.state}. Resetting to idle.")
+                        logger.error("Critical error: inactivity_after_5min_timeout")
+                        self.reset_to_idle()
+                time.sleep(10)
+            except Exception as e:
+                logger.error(f"Exception in inactivity watchdog: {str(e)}")
+
     def _on_button1_pressed(self):
         if self.state == State.IDLE:
-            #self.printer_service.print_collage('/home/viktoras/photobooth/photos/final_collage.jpg')
             self.initiate_payment()
             #self.led_manager.stop_pulsing_button1()
             #self.payment_successful()
@@ -92,7 +118,7 @@ class PhotoboothController:
 
     def initiate_payment(self):
         logger.info("Initiating payment...")
-        self.state = State.PAYMENT_INITIATED
+        self._update_state(State.PAYMENT_INITIATED)
         self.led_manager.stop_pulsing_button1()
         self.led_manager.set_button1_color(0.7, 0, 1)
         try:
@@ -111,9 +137,12 @@ class PhotoboothController:
         if not self.current_transaction_id:
             self.payment_failed()
             return
-        self.state = State.PAYMENT_CHECKING
+        self._update_state(State.PAYMENT_CHECKING)
         try:
-            status = self.payment_service.poll_transaction_status(self.current_transaction_id)
+            result = self.payment_service.poll_transaction_status(self.current_transaction_id)
+            status = result['status']
+            self.transaction_code = result.get('transaction_code')
+
             if status == "SUCCESSFUL":
                 self.payment_successful()
             else:
@@ -129,16 +158,16 @@ class PhotoboothController:
                 state='payment_successful_but_not_printed_yet'
             ).inc()
 
-        self.state = State.PAYMENT_SUCCESS
-        logger.info(f"Payment log: Transaction {self.current_transaction_id} - Payment successful, but not printed yet")
+        self._update_state(State.PAYMENT_SUCCESS)
+        logger.info(f"Payment log: Transaction {self.transaction_code} - Payment successful, but not printed yet")
         self.led_manager.set_button1_color(0, 1, 0)
-        self.state = State.PHOTO_PULSING
+        self._update_state(State.PHOTO_PULSING)
         self.led_manager.set_pulse_color_button2(red=0.1, green=1.0, blue=1)
         self.led_manager.start_pulsing_button2()
 
     def payment_failed(self):
-        ERRORS_TOTAL.labels(type='payment_failed').inc()
-        self.state = State.PAYMENT_FAILED
+        logger.error("Critical error: payment_failed")
+        self._update_state(State.PAYMENT_FAILED)
         logger.error("Payment failed!")
         self.led_manager.flash_button_red(5)
         self.reset_to_idle()
@@ -149,7 +178,7 @@ class PhotoboothController:
                 logger.warning("Photo capture not available in the current state.")
                 return
             self.photo_service.kill_gphoto2_process()
-            self.state = State.PHOTO_COUNTDOWN
+            self._update_state(State.PHOTO_COUNTDOWN)
             self.led_manager.stop_pulsing_button2()
             self.led_manager.set_button2_color(1, 0, 1)
             threading.Thread(target=self._countdown_and_capture, daemon=True).start()
@@ -160,20 +189,20 @@ class PhotoboothController:
         for remaining in range(4, 0, -1):
             time.sleep(0.97)
 
-        self.state = State.PHOTO_TAKING
+        self._update_state(State.PHOTO_TAKING)
         self.led_manager.set_button2_color(1, 0, 1)
         photo_path = self.photo_service.take_photo()
         if photo_path:
             logger.info(f"Photo {self.photo_service.current_photo_count} taken and saved.")
 
-            self.state = State.PHOTO_DOWNLOADING
+            self._update_state(State.PHOTO_DOWNLOADING)
 
             if self.photo_service.current_photo_count < self.photo_service.max_photos:
-                self.state = State.PHOTO_PULSING
+                self._update_state(State.PHOTO_PULSING)
                 self.led_manager.set_pulse_color_button2(red=0.1, green=1.0, blue=1)
                 self.led_manager.start_pulsing_button2()
             else:
-                self.state = State.PHOTO_COMPLETE
+                self._update_state(State.PHOTO_COMPLETE)
                 self.led_manager.set_button2_color(0, 1, 0)
                 logger.info("All photos taken successfully!")
 
@@ -186,33 +215,35 @@ class PhotoboothController:
                                 transaction_id=self.current_transaction_id,
                                 state='print_successful'
                             ).inc()
-                        logger.info(f"Payment log: Transaction {self.current_transaction_id} - Print also successful")
-                        self.state = State.PHOTO_PRINTED
+                        logger.info(f"Payment log: Transaction {self.transaction_code} - Print also successful")
+                        self._update_state(State.PHOTO_PRINTED)
                         self.led_manager.flash_button_green(5)
                         self.reset_to_idle()
                     else:
-                        ERRORS_TOTAL.labels(type='print_failed').inc()
+                        logger.error("Critical error: print_failed")
                         logger.error("Failed to print collage")
                         self.led_manager.flash_button_red(10)
                         self.reset_to_idle()
                 else:
-                    ERRORS_TOTAL.labels(type='collage_creation_failed').inc()
+                    logger.error("Critical error: collage_creation_failed")
                     logger.error("Failed to create final collage")
                     self.led_manager.flash_button_red(10)
                     self.reset_to_idle()
         else:
-            ERRORS_TOTAL.labels(type='photo_capture_failed').inc()
+            logger.error("Critical error: photo_capture_failed")
             logger.error("Failed to take/download photo.")
-            self.state = State.PHOTO_TAKING_FAILED
+            self._update_state(State.PHOTO_TAKING_FAILED)
             self.led_manager.flash_button_red(10)
             self.reset_to_idle()
 
     def reset_to_idle(self):
         self.cleanup_photos_directory()
         self.current_transaction_id = None
-        self.state = State.IDLE
+        self.transaction_code = None
+        self._update_state(State.IDLE)
         self.photo_service.reset_photo_count()
         self.led_manager.start_pulsing_button1()
+        self.led_manager.stop_pulsing_button2()
         self.led_manager.set_button2_color(0, 0, 0)
         logger.info("System reset to idle state.")
 
