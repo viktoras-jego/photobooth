@@ -107,9 +107,11 @@ class PhotoboothController:
 
     def _on_button1_pressed(self):
         if self.state == State.IDLE:
-            self.initiate_payment()
-            #self.led_manager.stop_pulsing_button1()
-            #self.payment_successful()
+            if self.config['demo'] == True:  # Python uses True, not true
+                self.led_manager.stop_pulsing_button1()
+                self.payment_successful()
+            else:
+                self.initiate_payment()
 
     def _on_button2_pressed(self):
         if self.state == State.PHOTO_PULSING:
