@@ -192,7 +192,6 @@ class PhotoboothController:
             time.sleep(0.97)
 
         self._update_state(State.PHOTO_TAKING)
-        self.led_manager.set_button2_color(1, 0, 1)
         photo_path = self.photo_service.take_photo()
         if photo_path:
             logger.info(f"Photo {self.photo_service.current_photo_count} taken and saved.")
@@ -200,10 +199,17 @@ class PhotoboothController:
             self._update_state(State.PHOTO_DOWNLOADING)
 
             if self.photo_service.current_photo_count < self.photo_service.max_photos:
-                self._update_state(State.PHOTO_PULSING)
-                self.led_manager.set_pulse_color_button2(red=0.1, green=1.0, blue=1)
-                self.led_manager.start_pulsing_button2()
+                self.led_manager.set_button2_color(1, 1, 0)
+
+                # Wait for 2 seconds
+                time.sleep(5)
+
+                self.photo_service.kill_gphoto2_process()
+                self.sound_service.play_timer_audio()
+                self.led_manager.set_button2_color(1, 0, 1)  # Increase red to compensate for dimming factor
+                threading.Thread(target=self._countdown_and_capture, daemon=True).start()
             else:
+                # Reset state when all photos are taken
                 self._update_state(State.PHOTO_COMPLETE)
                 self.led_manager.set_button2_color(0, 1, 0)
                 logger.info("All photos taken successfully!")
