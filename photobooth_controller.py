@@ -202,7 +202,7 @@ class PhotoboothController:
                 self.led_manager.set_button2_color(1, 1, 0)
 
                 # Wait for 2 seconds
-                time.sleep(5)
+                time.sleep(2)
 
                 self.photo_service.kill_gphoto2_process()
                 self.sound_service.play_timer_audio()

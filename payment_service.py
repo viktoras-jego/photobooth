@@ -89,7 +89,10 @@ class PaymentService:
                 result = self.get_transaction_status(client_transaction_id)
                 status = result['status']
                 if status in ["SUCCESSFUL", "FAILED"]:
-                    logger.info(f"Final transaction status: {status}")
+                    if status == "SUCCESSFUL":
+                        logger.info(f"Final transaction status: {status}")
+                    else:  # status == "FAILED"
+                        logger.warning(f"Final transaction status: {status}")
                     return result
                 time.sleep(interval_ms / 1000)
             except Exception as e:
