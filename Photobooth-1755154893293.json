@@ -15,17 +15,17 @@
       }
     ]
   },
-  "description": "All information about photobooth",
+  "description": "Photobooth",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
+  "id": 4,
   "links": [],
   "panels": [
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "deejr9mnu8zk0a"
+        "type": "loki",
+        "uid": "feek16xe45tdsd"
       },
       "fieldConfig": {
         "defaults": {
@@ -58,8 +58,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -71,12 +70,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
+        "h": 7,
         "w": 24,
         "x": 0,
         "y": 0
       },
-      "id": 3,
+      "id": 10,
       "options": {
         "barRadius": 0,
         "barWidth": 0.97,
@@ -93,28 +92,255 @@
         "stacking": "none",
         "tooltip": {
           "hideZeros": false,
-          "mode": "none",
+          "mode": "single",
           "sort": "none"
         },
         "xTickLabelRotation": 0,
         "xTickLabelSpacing": 0
       },
-      "pluginVersion": "11.5.2",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
+          "datasource": {
+            "type": "loki",
+            "uid": "feek16xe45tdsd"
+          },
+          "direction": "backward",
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "sum(max_over_time(transaction_state_total{state=\"print_successful\"}[$__interval] offset -1d)) or vector(0)",
-          "format": "table",
-          "instant": false,
-          "interval": "1d",
-          "legendFormat": "__auto",
-          "range": true,
+          "expr": "count_over_time(\n  {service_name=\"photobooth\"}\n  |= \"Payment log: Transaction\"\n  |= \"Payment successful, but not printed yet\"\n  |~ \"2025-08-14 (0[3-9]|1[0-9]|2[0-3]):\\\\d{2}:\\\\d{2}\"\n  | regexp \"(?P<date>\\\\d{4}-\\\\d{2}-\\\\d{2})\"\n  | label_format date=\"{{.date}}\"\n  [1d]\n) or vector(0)\n",
+          "legendFormat": "count",
+          "queryType": "range",
+          "refId": "A",
+          "step": "1d"
+        }
+      ],
+      "title": "Transaction count each day [Last 30 days]",
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "Time",
+            "renamePattern": "Old time"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "time",
+                "targetField": "Time 2"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Time",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Old time"
+                }
+              },
+              "operator": "-",
+              "right": {
+                "fixed": "86400000"
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "time",
+                "targetField": "Time 2"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "count",
+                "Time 2"
+              ]
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Number of transactions",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "count"
+                }
+              },
+              "right": {
+                "fixed": ""
+              }
+            },
+            "mode": "reduceRow",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "feek16xe45tdsd"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 9,
+        "x": 0,
+        "y": 7
+      },
+      "id": 9,
+      "options": {
+        "dedupStrategy": "none",
+        "enableInfiniteScrolling": false,
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": false,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "pluginVersion": "12.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "feek16xe45tdsd"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{service_name=\"photobooth\"}\n|= \"Payment log: Transaction\"\n|= \"Payment successful, but not printed yet\"\n| regexp \"(?P<date>\\\\d{4}-\\\\d{2}-\\\\d{2}) (?P<time>\\\\d{2}:\\\\d{2}:\\\\d{2}) - Payment log: Transaction (?P<transaction_code>[A-Za-z0-9]+)\"\n| line_format \"{{ .date }} {{ .time }} | Transaction Code: {{ .transaction_code }}\"",
+          "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Successful transactions with successful print [Last 30 days]",
-      "type": "barchart"
+      "title": "Successful payments",
+      "type": "logs"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "feek16xe45tdsd"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 15,
+        "x": 9,
+        "y": 7
+      },
+      "id": 11,
+      "options": {
+        "dedupStrategy": "none",
+        "enableInfiniteScrolling": false,
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": false,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "pluginVersion": "12.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "feek16xe45tdsd"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{service_name=\"photobooth\"}\n|= \"Payment card not accepted by terminal or insufficient funds.\"\n| regexp \"(?P<date>\\\\d{4}-\\\\d{2}-\\\\d{2}) (?P<time>\\\\d{2}:\\\\d{2}:\\\\d{2})\"\n| line_format \"{{ .date }} {{ .time }} | Payment card not accepted by the terminal or insufficient funds.\"",
+          "hide": false,
+          "queryType": "range",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "feek16xe45tdsd"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{service_name=\"photobooth\"}\n|= \"Payment started, but no one paid. Payment cancelled after 1 minute.\"\n| regexp \"(?P<date>\\\\d{4}-\\\\d{2}-\\\\d{2}) (?P<time>\\\\d{2}:\\\\d{2}:\\\\d{2})\"\n| line_format \"{{ .date }} {{ .time }} | Payment started, but no one paid. Transaction cancelled after 1 minute.\"",
+          "hide": false,
+          "queryType": "range",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "feek16xe45tdsd"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{service_name=\"photobooth\"}\n|= \"Payment terminal not working, could not initiate the payment\"\n| regexp \"(?P<date>\\\\d{4}-\\\\d{2}-\\\\d{2}) (?P<time>\\\\d{2}:\\\\d{2}:\\\\d{2})\"\n| line_format \"{{ .date }} {{ .time }} | Payment terminal not working, could not initiate the payment\"",
+          "hide": false,
+          "queryType": "range",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "feek16xe45tdsd"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{service_name=\"photobooth\"}\n|= \"Failed to print collage\"\n| regexp \"(?P<date>\\\\d{4}-\\\\d{2}-\\\\d{2}) (?P<time>\\\\d{2}:\\\\d{2}:\\\\d{2})\"\n| line_format \"{{ .date }} {{ .time }} | Printer not working, cannot print picture.\"",
+          "hide": false,
+          "queryType": "range",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "feek16xe45tdsd"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{service_name=\"photobooth\"}\n|= \"Critical error: photo_capture_failed\"\n| regexp \"(?P<date>\\\\d{4}-\\\\d{2}-\\\\d{2}) (?P<time>\\\\d{2}:\\\\d{2}:\\\\d{2})\"\n| line_format \"{{ .date }} {{ .time }} | Camera not working, cannot take picture.\"",
+          "hide": false,
+          "queryType": "range",
+          "refId": "E"
+        }
+      ],
+      "title": "Additional logs",
+      "type": "logs"
     },
     {
       "datasource": {
@@ -137,8 +363,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": null
+                "color": "red"
               },
               {
                 "color": "orange",
@@ -155,10 +380,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 5,
         "x": 0,
-        "y": 9
+        "y": 21
       },
       "id": 1,
       "options": {
@@ -177,7 +402,7 @@
         "sizing": "auto",
         "text": {}
       },
-      "pluginVersion": "11.5.2",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -220,8 +445,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
-                "value": null
+                "color": "blue"
               }
             ]
           },
@@ -230,10 +454,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 5,
         "x": 5,
-        "y": 9
+        "y": 21
       },
       "id": 2,
       "options": {
@@ -252,7 +476,7 @@
         "sizing": "auto",
         "text": {}
       },
-      "pluginVersion": "11.5.2",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -295,8 +519,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -345,10 +568,10 @@
         ]
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 14,
         "x": 10,
-        "y": 9
+        "y": 21
       },
       "id": 5,
       "options": {
@@ -369,7 +592,7 @@
           }
         ]
       },
-      "pluginVersion": "11.5.2",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -445,184 +668,11 @@
         }
       ],
       "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "feek16xe45tdsd"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 15
-      },
-      "id": 8,
-      "options": {
-        "dedupStrategy": "none",
-        "enableInfiniteScrolling": false,
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": false,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
-      },
-      "pluginVersion": "11.5.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "feek16xe45tdsd"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "{service_name=\"photobooth\"}\n|= \"Critical error\"\n| regexp `Critical error: (?P<reason>[^\\s]+)`",
-          "legendFormat": "reason",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ],
-      "title": "Critical errors [Last 30 days]",
-      "transformations": [
-        {
-          "disabled": true,
-          "id": "formatTime",
-          "options": {
-            "outputFormat": "MM-DD",
-            "timeField": "Time",
-            "useTimezone": true
-          }
-        },
-        {
-          "disabled": true,
-          "id": "extractFields",
-          "options": {
-            "delimiter": ",",
-            "source": "labels"
-          }
-        },
-        {
-          "disabled": true,
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "detected_level": true,
-              "filename": true,
-              "id": true,
-              "job": true,
-              "labelTypes": true,
-              "labels": true,
-              "service_name": true,
-              "tsNs": true
-            },
-            "includeByName": {},
-            "indexByName": {},
-            "renameByName": {
-              "Line": "reason"
-            }
-          }
-        }
-      ],
-      "type": "logs"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "feek16xe45tdsd"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 23
-      },
-      "id": 4,
-      "options": {
-        "dedupStrategy": "none",
-        "enableInfiniteScrolling": false,
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": false,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
-      },
-      "pluginVersion": "11.5.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "feek16xe45tdsd"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "{service_name=\"photobooth\"} |= \"ERROR\"",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ],
-      "title": "Error logs [Last 30 days]",
-      "type": "logs"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "feek16xe45tdsd"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 33
-      },
-      "id": 7,
-      "options": {
-        "dedupStrategy": "none",
-        "enableInfiniteScrolling": false,
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": false,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
-      },
-      "pluginVersion": "11.5.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "feek16xe45tdsd"
-          },
-          "direction": "backward",
-          "editorMode": "builder",
-          "expr": "{service_name=\"photobooth\"} |= ``",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ],
-      "title": "All logs [Last 30 days]",
-      "type": "logs"
     }
   ],
   "preload": false,
   "refresh": "",
-  "schemaVersion": 40,
+  "schemaVersion": 41,
   "tags": [],
   "templating": {
     "list": []
@@ -633,8 +683,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "General Photobooth overview",
-  "uid": "cefpg3deuyzuob",
-  "version": 47,
-  "weekStart": ""
+  "title": "Photobooth",
+  "uid": "3a8ee850-9bfa-4482-a1f0-2831162a9e61",
+  "version": 28
 }

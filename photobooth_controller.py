@@ -130,8 +130,10 @@ class PhotoboothController:
                 logger.info(f"Payment initiated with transaction ID: {transaction_id}")
                 threading.Timer(4.0, self.check_payment_status).start()
             else:
+                logger.error("Payment terminal not working, could not initiate the payment")
                 self.payment_failed()
         except Exception as e:
+            logger.error("Payment terminal not working, could not initiate the payment")
             logger.error(f"Payment initiation error: {str(e)}")
             self.payment_failed()
 

@@ -92,7 +92,12 @@ class PaymentService:
                     if status == "SUCCESSFUL":
                         logger.info(f"Final transaction status: {status}")
                     else:  # status == "FAILED"
-                        logger.warning(f"Final transaction status: {status}")
+                        if attempts < 43:
+                            logger.warning("Payment card not accepted by terminal or insufficient funds.")
+                            logger.warning(f"Attempts reached: {attempts}")
+                        else:
+                            logger.warning("Payment started, but no one paid. Payment cancelled after 1 minute.")
+                            logger.error(f"Attempts reached: {attempts}")
                     return result
                 time.sleep(interval_ms / 1000)
             except Exception as e:
