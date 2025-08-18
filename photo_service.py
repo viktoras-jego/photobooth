@@ -57,6 +57,61 @@ class PhotoService:
             logger.exception(f"Error while killing gphoto2 processes: {e}")
             return False
 
+    def detect_connected_cameras(self):
+        """Detect connected cameras using gphoto2."""
+        try:
+            # Kill any existing gphoto2 processes first
+            self.kill_gphoto2_process()
+            time.sleep(1)
+            
+            # Detect connected cameras
+            result = subprocess.run(['gphoto2', '--auto-detect'], 
+                                  capture_output=True, text=True, timeout=15)
+            
+            if result.returncode == 0:
+                output = result.stdout.strip()
+                lines = [line.strip() for line in output.split('\n') if line.strip()]
+                
+                # Filter out header lines
+                camera_lines = []
+                for line in lines:
+                    if not line.startswith('Model') and not line.startswith('-----') and line:
+                        if 'usb:' in line or '/dev/' in line or 'ptpip:' in line:
+                            camera_lines.append(line)
+                
+                if camera_lines:
+                    logger.info(f"Connected cameras found: {len(camera_lines)}")
+                    return True, camera_lines
+                else:
+                    logger.error("No connected cameras detected - Cannot start transaction")
+                    return False, []
+            else:
+                logger.error("No connected cameras detected - Cannot start transaction. gphoto2 error 1")
+                return False, []
+                
+        except FileNotFoundError:
+            logger.error("No connected cameras detected - Cannot start transaction. gphoto2 error 2")
+            return False, []
+        except subprocess.TimeoutExpired:
+            logger.error("No connected cameras detected - Cannot start transaction. gphoto2 error 3")
+            return False, []
+        except Exception as e:
+            logger.error("No connected cameras detected - Cannot start transaction. gphoto2 error 4")
+            return False, []
+
+    def is_camera_ready(self):
+        """Check if at least one camera is connected and ready."""
+        try:
+            gphoto2_detected, connected_cameras = self.detect_connected_cameras()
+            if gphoto2_detected and connected_cameras:
+                return True
+            else:
+                logger.error("Camera not ready - no cameras detected")
+                return False
+        except Exception as e:
+            logger.error(f"Error checking camera readiness: {e}")
+            return False
+
     def create_final_photo(self, quality=100, optimize=False):
         """
         Creates a 1200x1800 collage with adjustable line and border widths.

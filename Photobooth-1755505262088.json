@@ -107,7 +107,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "count_over_time(\n  {service_name=\"photobooth\"}\n  |= \"Payment log: Transaction\"\n  |= \"Payment successful, but not printed yet\"\n  |~ \"2025-08-14 (0[3-9]|1[0-9]|2[0-3]):\\\\d{2}:\\\\d{2}\"\n  | regexp \"(?P<date>\\\\d{4}-\\\\d{2}-\\\\d{2})\"\n  | label_format date=\"{{.date}}\"\n  [1d]\n) or vector(0)\n",
+          "expr": "count_over_time( {service_name=\"photobooth\"} |= \"Payment log: Transaction\" |= \"Payment successful, but not printed yet\" | regexp \"(?P<date>\\\\d{4}-\\\\d{2}-\\\\d{2})\" | label_format date=\"{{.date}}\" [1d] ) or vector(0)",
           "legendFormat": "count",
           "queryType": "range",
           "refId": "A",
@@ -200,6 +200,24 @@
               "reducer": "sum"
             },
             "replaceFields": true
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "greater",
+                  "options": {
+                    "value": "220"
+                  }
+                },
+                "fieldName": "Number of transactions"
+              }
+            ],
+            "match": "all",
+            "type": "exclude"
           }
         }
       ],
@@ -337,6 +355,30 @@
           "hide": false,
           "queryType": "range",
           "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "feek16xe45tdsd"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{service_name=\"photobooth\"}\n|= \"No connected cameras detected - Cannot start transaction\"\n| regexp \"(?P<date>\\\\d{4}-\\\\d{2}-\\\\d{2}) (?P<time>\\\\d{2}:\\\\d{2}:\\\\d{2})\"\n| line_format \"{{ .date }} {{ .time }} | No cameraa detected - Cannot start transaction\"",
+          "hide": false,
+          "queryType": "range",
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "feek16xe45tdsd"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{service_name=\"photobooth\"}\n|= \"Printer not ready. Cannot start transaction\"\n| regexp \"(?P<date>\\\\d{4}-\\\\d{2}-\\\\d{2}) (?P<time>\\\\d{2}:\\\\d{2}:\\\\d{2})\"\n| line_format \"{{ .date }} {{ .time }} | Printer not ready (Probably no paper left). Cannot start transaction\"",
+          "hide": false,
+          "queryType": "range",
+          "refId": "G"
         }
       ],
       "title": "Additional logs",
@@ -685,5 +727,5 @@
   "timezone": "browser",
   "title": "Photobooth",
   "uid": "3a8ee850-9bfa-4482-a1f0-2831162a9e61",
-  "version": 28
+  "version": 30
 }

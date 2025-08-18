@@ -120,6 +120,19 @@ class PhotoboothController:
 
     def initiate_payment(self):
         logger.info("Initiating payment...")
+        
+        # Check if printer is ready before proceeding with payment
+        if not self.printer_service.is_printer_ready():
+            logger.error("Cannot initiate payment - printer not ready")
+            self.payment_failed()
+            return
+        
+        # Check if camera is ready before proceeding with payment
+        if not self.is_camera_ready():
+            logger.error("Cannot initiate payment - camera not ready")
+            self.payment_failed()
+            return
+        
         self._update_state(State.PAYMENT_INITIATED)
         self.led_manager.stop_pulsing_button1()
         self.led_manager.set_button1_color(0.7, 0, 1)

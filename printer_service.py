@@ -168,6 +168,21 @@ class PrinterService:
         except Exception as e:
             logger.error(f"Error updating print counts: {e}")
 
+    def is_printer_ready(self):
+        """Check if printer is ready for printing (state 3 = idle)."""
+        try:
+            printer_info = self.conn.getPrinterAttributes(self.printer_name)
+            printer_state = printer_info.get('printer-state', 0)
+            
+            if printer_state == 3:
+                return True
+            else:
+                logger.error(f"Printer not ready. Cannot start transaction Current state: {printer_state}")
+                return False
+        except Exception as e:
+            logger.error(f"Error checking printer readiness: {e}")
+            return False
+
     def cleanup(self):
         try:
             if os.path.exists(self.temp_directory):
