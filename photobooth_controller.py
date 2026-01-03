@@ -120,6 +120,8 @@ class PhotoboothController:
 
     def initiate_payment(self):
         logger.info("Initiating payment...")
+
+        self.led_manager.stop_pulsing_button1()
         
         # Check if printer is ready before proceeding with payment
         if not self.printer_service.is_printer_ready():
@@ -132,10 +134,10 @@ class PhotoboothController:
             logger.error("Cannot initiate payment - camera not ready")
             self.payment_failed()
             return
-        
+
         self._update_state(State.PAYMENT_INITIATED)
-        self.led_manager.stop_pulsing_button1()
         self.led_manager.set_button1_color(0.7, 0, 1)
+
         try:
             transaction_id = self.payment_service.create_checkout()
             if transaction_id:
@@ -284,6 +286,10 @@ class PhotoboothController:
             logger.error(f"Fatal error in main loop: {str(e)}")
             self._handle_shutdown(None, None)
             raise
+
+    def is_camera_ready(self):
+        """Check if camera is ready for photo capture."""
+        return self.photo_service.is_camera_ready()
 
     def _handle_shutdown(self, signum, frame):
             logger.info("Shutting down photobooth controller...")
